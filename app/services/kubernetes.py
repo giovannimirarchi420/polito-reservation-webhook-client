@@ -3,6 +3,11 @@ from kubernetes import client
 from kubernetes.client.rest import ApiException
 from .. import config # Use relative import for config
 
+# Get the logger from config
+logger = config.logger
+
+METAL3_CR_NAME = "BareMetalHost"  # The name of the CRD for BareMetalHost
+
 def patch_baremetalhost(bmh_name: str, image_url: str | None):
     """Patch the BareMetalHost CR with the specified image."""
     api = client.CustomObjectsApi()
@@ -28,9 +33,8 @@ def patch_baremetalhost(bmh_name: str, image_url: str | None):
         # Alternative: JSON Patch to remove the key if required by Metal3
         # patch = [{"op": "remove", "path": "/spec/image"}]
 
-    print(f"Patching BareMetalHost '{bmh_name}' in namespace '{config.K8S_NAMESPACE}' with patch: {json.dumps(patch)}", flush=True)
-
     try:
+        logger.info(f"Attempting to patch BareMetalHost '{bmh_name}' in namespace '{config.K8S_NAMESPACE}' with image '{image_url}'.")
         api.patch_namespaced_custom_object(
             group=config.BMH_API_GROUP,
             version=config.BMH_API_VERSION,
@@ -39,12 +43,11 @@ def patch_baremetalhost(bmh_name: str, image_url: str | None):
             name=bmh_name,
             body=patch
         )
-        print(f"Successfully patched BareMetalHost '{bmh_name}'.", flush=True)
+        logger.info(f"Successfully patched BareMetalHost '{bmh_name}'.")
         return True
     except ApiException as e:
-        print(f"Error patching BareMetalHost '{bmh_name}': {e.reason} (Status: {e.status})", flush=True)
-        print(f"Response body: {e.body}", flush=True)
+        logger.error(f"Error patching BareMetalHost '{bmh_name}': {e.reason} (Status: {e.status}). Body: {e.body}")
         return False
     except Exception as e:
-        print(f"An unexpected error occurred patching BareMetalHost '{bmh_name}': {e}", flush=True)
+        logger.error(f"An unexpected error occurred while patching BareMetalHost '{bmh_name}': {str(e)}")
         return False
