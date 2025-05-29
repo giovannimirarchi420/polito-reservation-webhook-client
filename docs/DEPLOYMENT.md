@@ -214,9 +214,6 @@ kubectl apply -f k8s/secret.yaml
 # Deploy application
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
-
-# Configure ingress (optional)
-kubectl apply -f k8s/ingress.yaml
 ```
 
 ### 5. Verify Deployment
@@ -277,7 +274,7 @@ Use minimal RBAC permissions:
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   name: webhook-client-role
   namespace: metal3-system
