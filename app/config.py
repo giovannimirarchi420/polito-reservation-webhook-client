@@ -1,50 +1,145 @@
+"""
+Application configuration module.
+
+This module handles all configuration settings for the webhook client,
+including logging setup and Kubernetes configuration management.
+"""
+import logging
 import os
-from kubernetes import config as kube_config # Alias to avoid name clash
-import logging # Add logging import
+from typing import Optional
 
-# Logging setup
-def setup_logging():
-    """Sets up a basic logger."""
-    logger = logging.getLogger("webhook_client")
-    
-    # Get log level from environment variable, default to INFO
-    log_level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
-    log_level = getattr(logging, log_level_name, logging.INFO)
-    logger.setLevel(log_level)
-    
-    handler = logging.StreamHandler() # Log to stdout/stderr
-    # More detailed formatter for production
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - [%(module)s:%(lineno)d] - %(message)s')
-    handler.setFormatter(formatter)
-    
-    if not logger.handlers: # Avoid adding multiple handlers if reloaded
-        logger.addHandler(handler)
-    return logger
+from kubernetes import config as kube_config
 
-logger = setup_logging() # Initialize logger
 
-# Load Kubernetes configuration
-def load_kubernetes_config():
-    try:
-        kube_config.load_incluster_config()
-        logger.info("Loaded in-cluster Kubernetes config.")
-    except kube_config.ConfigException:
+class ConfigurationError(Exception):
+    """Raised when there's an error in configuration."""
+    pass
+
+
+class HealthzFilter(logging.Filter):
+    """Filter to exclude /healthz endpoint logs."""
+    
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Filter out log records containing '/healthz' requests."""
+        return record.getMessage().find("/healthz") == -1
+
+
+class LoggingConfig:
+    """Manages logging configuration."""
+    
+    @staticmethod
+    def setup_logger(name: str = "webhook_client") -> logging.Logger:
+        """
+        Set up a logger with appropriate formatting and level.
+        
+        Args:
+            name: Name of the logger
+            
+        Returns:
+            Configured logger instance
+        """
+        logger = logging.getLogger(name)
+        
+        # Get log level from environment variable, default to INFO
+        log_level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
+        log_level = getattr(logging, log_level_name, logging.INFO)
+        logger.setLevel(log_level)
+        
+        # Avoid adding multiple handlers if reloaded
+        if not logger.handlers:
+            handler = logging.StreamHandler()  # Log to stdout/stderr
+            formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - [%(module)s:%(lineno)d] - %(message)s'
+            )
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+            
+        return logger
+
+
+class KubernetesConfig:
+    """Manages Kubernetes configuration."""
+    
+    @staticmethod
+    def load_config() -> None:
+        """
+        Load Kubernetes configuration (in-cluster or local kubeconfig).
+        
+        Raises:
+            ConfigurationError: If no valid Kubernetes configuration is found
+        """
         try:
-            kube_config.load_kube_config()
-            logger.info("Loaded local Kubernetes config (kubeconfig).")
+            kube_config.load_incluster_config()
+            logger.info("Loaded in-cluster Kubernetes config.")
         except kube_config.ConfigException:
-            logger.error("Could not load any Kubernetes configuration.")
-            # Depending on requirements, you might exit or handle this differently
+            try:
+                kube_config.load_kube_config()
+                logger.info("Loaded local Kubernetes config (kubeconfig).")
+            except kube_config.ConfigException:
+                error_msg = "Could not load any Kubernetes configuration."
+                logger.error(error_msg)
+                raise ConfigurationError(error_msg)
 
-# Load configuration from environment variables
-K8S_NAMESPACE = os.environ.get("K8S_NAMESPACE", "default")
-BMH_API_GROUP = os.environ.get("BMH_API_GROUP", "metal3.io")
-BMH_API_VERSION = os.environ.get("BMH_API_VERSION", "v1alpha1")
-BMH_PLURAL = os.environ.get("BMH_PLURAL", "baremetalhosts")
-PROVISION_IMAGE = os.environ.get("PROVISION_IMAGE", "default-provision-image-url")
-DEPROVISION_IMAGE = os.environ.get("DEPROVISION_IMAGE", "")
-WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET")
-PORT = 8088
 
-# Initialize Kubernetes config on load
-load_kubernetes_config()
+class AppConfig:
+    """Application configuration container."""
+    
+    def __init__(self):
+        """Initialize configuration from environment variables."""
+        # Kubernetes configuration
+        self.k8s_namespace = os.environ.get("K8S_NAMESPACE", "default")
+        self.bmh_api_group = os.environ.get("BMH_API_GROUP", "metal3.io")
+        self.bmh_api_version = os.environ.get("BMH_API_VERSION", "v1alpha1")
+        self.bmh_plural = os.environ.get("BMH_PLURAL", "baremetalhosts")
+        
+        # Image configuration
+        self.provision_image = os.environ.get("PROVISION_IMAGE", "default-provision-image-url")
+        self.provision_checksum = os.environ.get("PROVISION_CHECKSUM", "default-provision-checksum-image-url")
+        self.provision_checksum_type = os.environ.get("PROVISION_CHECKSUM_TYPE", "sha256")
+        self.deprovision_image = os.environ.get("DEPROVISION_IMAGE", "")
+        
+        # Security configuration
+        self.webhook_secret = os.environ.get("WEBHOOK_SECRET")
+        
+        # Server configuration
+        self.port = int(os.environ.get("PORT", "8080"))
+        
+        # Logging configuration
+        self.disable_healthz_logs = os.environ.get("DISABLE_HEALTHZ_LOGS", "true").lower() == "true"
+        
+        # Validate required configuration
+        self._validate_config()
+    
+    def _validate_config(self) -> None:
+        """Validate configuration values."""
+        if not self.provision_image or self.provision_image == "default-provision-image-url":
+            logger.warning("PROVISION_IMAGE not configured or using default value.")
+        
+        if not self.webhook_secret:
+            logger.warning("WEBHOOK_SECRET not configured. Signature verification will be skipped.")
+
+
+# Initialize configuration
+logger = LoggingConfig.setup_logger()
+config = AppConfig()
+
+# Configure uvicorn access logger to filter out healthz requests if enabled
+if config.disable_healthz_logs:
+    uvicorn_access_logger = logging.getLogger("uvicorn.access")
+    uvicorn_access_logger.addFilter(HealthzFilter())
+
+# Initialize Kubernetes configuration
+KubernetesConfig.load_config()
+
+# Export commonly used configuration values for backward compatibility
+K8S_NAMESPACE = config.k8s_namespace
+BMH_API_GROUP = config.bmh_api_group
+BMH_API_VERSION = config.bmh_api_version
+BMH_PLURAL = config.bmh_plural
+PROVISION_IMAGE = config.provision_image
+PROVISION_CHECKSUM = config.provision_checksum
+PROVISION_CHECKSUM_TYPE = config.provision_checksum_type
+DEPROVISION_IMAGE = config.deprovision_image
+WEBHOOK_SECRET = config.webhook_secret
+PORT = config.port
+DISABLE_HEALTHZ_LOGS = config.disable_healthz_logs

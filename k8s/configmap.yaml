@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webhook-client-config
+  namespace: resource-management
+data:
+  K8S_NAMESPACE: "metal3"
+  BMH_API_GROUP: "metal3.io"
+  BMH_API_VERSION: "v1alpha1"
+  BMH_PLURAL: "baremetalhosts"
+  PROVISION_IMAGE: "http://192.168.11.23/images/noble-server-cloudimg-amd64.img"
+  PROVISION_CHECKSUM: "http://192.168.11.23/images/noble-server-cloudimg-amd64.img.sha256sum"
+  PROVISION_CHECKSUM_TYPE: "sha256"
+  DEPROVISION_IMAGE: ""
+  LOG_LEVEL: "INFO"
+  DISABLE_HEALTHZ_LOGS: "true"
