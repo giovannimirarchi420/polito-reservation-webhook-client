@@ -209,13 +209,17 @@ class BareMetalHostManager:
                 f"in namespace '{config.K8S_NAMESPACE}'."
             )
             
-            self.api.patch_namespaced_custom_object(
+            response = self.api.patch_namespaced_custom_object(
                 group=config.BMH_API_GROUP,
                 version=config.BMH_API_VERSION,
                 namespace=config.K8S_NAMESPACE,
                 plural=config.BMH_PLURAL,
                 name=bmh_name,
                 body=patch
+            )
+
+            logger.debug(
+                f"Patch response for BareMetalHost '{bmh_name}': {response}"
             )
             
             logger.info(f"Successfully {operation}ed BareMetalHost '{bmh_name}'.")
