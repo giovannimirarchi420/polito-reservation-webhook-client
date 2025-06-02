@@ -30,7 +30,6 @@ Application Components
 |----------|------|----------|---------|-------------|
 | `PORT` | integer | No | `5001` | HTTP server listening port |
 | `LOG_LEVEL` | string | No | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
-| `LOG_FORMAT` | string | No | `text` | Log format (`text` or `json`) |
 
 ### Kubernetes Configuration
 
@@ -73,7 +72,6 @@ Application Components
 # .env.development
 PORT=5001
 LOG_LEVEL=DEBUG
-LOG_FORMAT=text
 
 # Kubernetes
 K8S_NAMESPACE=metal3-dev
@@ -98,7 +96,6 @@ metadata:
 data:
   PORT: "5001"
   LOG_LEVEL: "INFO"
-  LOG_FORMAT: "json"
   K8S_NAMESPACE: "metal3-system"
   BMH_API_GROUP: "metal3.io"
   BMH_API_VERSION: "v1alpha1"
@@ -129,7 +126,6 @@ data:
 environment:
   - PORT=5001
   - LOG_LEVEL=INFO
-  - LOG_FORMAT=json
   - K8S_NAMESPACE=metal3-system
   - PROVISION_IMAGE=http://image-server/provision.iso
   - WEBHOOK_SECRET=production-secret
@@ -197,13 +193,11 @@ class LoggingConfig:
     
     def __init__(self):
         self.level: str = os.getenv("LOG_LEVEL", "INFO")
-        self.format: str = os.getenv("LOG_FORMAT", "text")
 ```
 
 #### Properties
 
 - **`level`**: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-- **`format`**: Log format (text, json)
 
 ## Configuration Validation
 

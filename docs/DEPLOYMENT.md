@@ -311,8 +311,6 @@ securityContext:
 env:
 - name: LOG_LEVEL
   value: "INFO"
-- name: LOG_FORMAT
-  value: "json"  # For structured logging
 ```
 
 #### Monitoring Integration
