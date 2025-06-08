@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: webhook-client-config
-  namespace: resource-management
+  namespace: prognose
 data:
   K8S_NAMESPACE: "metal3"
   BMH_API_GROUP: "metal3.io"

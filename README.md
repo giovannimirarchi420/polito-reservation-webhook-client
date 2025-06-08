@@ -192,18 +192,11 @@ The service automatically configures Kubernetes authentication:
 Deploy using the provided manifests:
 
 ```bash
-# Apply namespace and RBAC
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/rbac-restrictive.yaml
-
-# Create secrets and config
+kubectl apply -f k8s/rbac.yaml
 kubectl apply -f k8s/secret.yaml
 kubectl apply -f k8s/configmap.yaml
-
-# Deploy application
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
-kubectl apply -f k8s/ingress.yaml
 ```
 
 ## 📡 API Reference
@@ -221,24 +214,57 @@ Receives and processes reservation lifecycle events.
 **Request Body:**
 ```json
 {
-    "eventType": "EVENT_START | EVENT_END",
-    "timestamp": "2019-08-24T14:15:22Z",
-    "eventId": "string",
-    "userId": "string",
-    "username": "string",
-    "email": "string",
-    "sshPublicKey": "string",
-    "eventTitle": "string",
-    "eventDescription": "string",
-    "eventStart": "2019-08-24T14:15:22Z",
-    "eventEnd": "2019-08-24T14:15:22Z",
-    "resourceId": 0,
-    "resourceName": "string",
-    "resourceType": "string",
-    "resourceSpecs": "string",
-    "resourceLocation": "string",
-    "siteId": "string",
-    "siteName": "string"
+  "eventType": "EVENT_START | EVENT_END",
+  "timestamp": "2025-06-08T14:30:00.000+02:00",
+  "eventCount": 3,
+  "userId": "keycloak-user-id-123",
+  "username": "giovanni.mirarchi",
+  "email": "giovanni.mirarchi@example.com",
+  "sshPublicKey": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC...",
+  "events": [
+    {
+      "eventId": "101",
+      "eventTitle": "Server Maintenance Lab A",
+      "eventDescription": "Maintenance work on lab servers",
+      "eventStart": "2025-06-08T15:00:00.000+02:00",
+      "eventEnd": "2025-06-08T17:00:00.000+02:00",
+      "resourceId": 1,
+      "resourceName": "Lab Server A1",
+      "resourceType": "Server",
+      "resourceSpecs": "Intel Xeon E5-2690, 32GB RAM, 1TB SSD",
+      "resourceLocation": "Building A, Room 101",
+      "siteId": "site-polito-torino",
+      "siteName": "Politecnico di Torino"
+    },
+    {
+      "eventId": "102",
+      "eventTitle": "Database Testing",
+      "eventDescription": "Performance testing on database cluster",
+      "eventStart": "2025-06-08T15:30:00.000+02:00",
+      "eventEnd": "2025-06-08T18:00:00.000+02:00",
+      "resourceId": 2,
+      "resourceName": "DB Cluster Node 1",
+      "resourceType": "Database",
+      "resourceSpecs": "PostgreSQL 14, 64GB RAM, NVMe SSD",
+      "resourceLocation": "Building A, Room 102",
+      "siteId": "site-polito-torino",
+      "siteName": "Politecnico di Torino"
+    },
+    {
+      "eventId": "103",
+      "eventTitle": "Network Configuration",
+      "eventDescription": "Router configuration update",
+      "eventStart": "2025-06-08T16:00:00.000+02:00",
+      "eventEnd": "2025-06-08T17:30:00.000+02:00",
+      "resourceId": 5,
+      "resourceName": "Core Router R1",
+      "resourceType": "Network Equipment",
+      "resourceSpecs": "Cisco ASR 9000, 48 ports",
+      "resourceLocation": "Network Room, Floor 1",
+      "siteId": "site-polito-torino",
+      "siteName": "Politecnico di Torino"
+    }
+  ]
 }
 ```
 
@@ -248,7 +274,7 @@ Receives and processes reservation lifecycle events.
   "status": "success",
   "message": "Resource provisioned successfully",
   "resourceName": "bmh-resource-001",
-  "eventType": "EVENT_START",
+  "eventType": "EVENT_START | EVENT_END",
   "timestamp": "2024-01-01T12:00:00Z"
 }
 ```

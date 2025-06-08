@@ -159,7 +159,7 @@ The `k8s/` directory contains all necessary Kubernetes manifests:
 ```
 k8s/
 ├── namespace.yaml          # Namespace creation
-├── rbac-restrictive.yaml   # RBAC permissions
+├── rbac.yaml               # RBAC permissions
 ├── configmap.yaml          # Configuration
 ├── secret.yaml             # Sensitive configuration
 ├── deployment.yaml         # Application deployment
@@ -205,7 +205,7 @@ data:
 kubectl apply -f k8s/namespace.yaml
 
 # Apply RBAC
-kubectl apply -f k8s/rbac-restrictive.yaml
+kubectl apply -f k8s/rbac.yaml
 
 # Create configuration
 kubectl apply -f k8s/configmap.yaml

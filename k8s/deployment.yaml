@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: webhook-client
-  namespace: resource-management
+  namespace: prognose
   labels:
     app: webhook-client
 spec:

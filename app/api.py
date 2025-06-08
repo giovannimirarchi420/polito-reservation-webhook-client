@@ -4,7 +4,7 @@ Webhook API endpoints for handling reservation events.
 This module provides FastAPI router with endpoints for processing webhook events
 related to resource provisioning and deprovisioning.
 """
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import APIRouter, Request, Header, HTTPException, status
 from fastapi.responses import JSONResponse
@@ -36,50 +36,58 @@ async def _verify_webhook_signature(request: Request, signature: Optional[str]) 
     """
     payload_raw = await request.body()
     
-    if not security.verify_signature(payload_raw, signature):
-        logger.warning("Webhook signature verification failed.")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Signature verification failed"
-        )
+    # Use the WebhookSecurity class for signature verification
+    webhook_secret_value = config.WEBHOOK_SECRET # Changed from config.settings.webhook_secret
+    if webhook_secret_value:
+        sec_service = security.WebhookSecurity(webhook_secret_value)
+        if not sec_service.verify_signature(payload_raw, signature):
+            logger.warning("Webhook signature verification failed.")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, # Changed to 403
+                detail="Invalid webhook signature"
+            )
+        logger.info("Webhook signature verified successfully.")
+    else:
+        logger.warning("Webhook secret not configured. Skipping signature verification.")
+        # Allow requests if no secret is configured, or raise error based on policy
+        # For now, allowing, consistent with previous direct call to security.verify_signature behavior
     
     return payload_raw
 
 
-def _create_success_response(resource_name: str, action: str) -> JSONResponse:
-    """Create a standardized success response."""
-    message = f"{action.capitalize()} initiated for {resource_name}"
+def _create_batch_success_response(action: str, count: int, user_id: Optional[str]) -> JSONResponse:
+    """Create a standardized success response for batch operations."""
+    user_str = f" for user {user_id}" if user_id else ""
+    message = f"Batch {action} initiated for {count} events{user_str}."
     response_data = {"status": "success", "message": message}
     logger.debug(f"Response data: {response_data}")
     return JSONResponse(response_data)
 
-
-def _raise_provisioning_error(resource_name: str, action: str) -> None:
-    """Raise a standardized provisioning error."""
-    error_message = f"Failed to initiate {action} for {resource_name}"
-    logger.error(f"[{action.upper()}] {error_message}")
-    raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail=error_message
-    )
-
-
-def _handle_provision_event(resource_name: str, ssh_public_key: Optional[str]) -> JSONResponse:
+def _post_batch_provision_actions(events: List[models.Event], user_info: dict) -> None:
     """
-    Handle provisioning event for a resource.
-    
-    Args:
-        resource_name: Name of the resource to provision
-        ssh_public_key: SSH public key for the resource
-        
-    Returns:
-        JSONResponse with operation result
-        
-    Raises:
-        HTTPException: If provisioning fails
+    Perform actions after all resources in a batch have been provisioned.
+    This is a placeholder for custom logic, e.g., setting up networking,
+    shared storage, or notifying a user/system.
+    """
+    logger.info(f"Executing post-batch provision actions for user {user_info.get('username')}, {len(events)} resources.")
+    # Example: Log the resources that were provisioned
+    for event in events:
+        logger.info(f"  Post-provision check for: {event.resource_name} (Event ID: {event.event_id})")
+    # Add your custom logic here
+    # This could involve:
+    # - Configuring network policies between the provisioned resources
+    # - Setting up shared file systems or databases
+    # - Sending a notification that the batch of resources is ready
+    # - Triggering a subsequent workflow
+    logger.info("Post-batch provision actions placeholder completed.")
+
+
+def _handle_provision_event(resource_name: str, ssh_public_key: Optional[str], event_id: Optional[str] = None) -> bool:
+    """
+    Handle provisioning event for a single resource. Returns True on success.
     """
     logger.info(
-        f"[{EVENT_START}] Processing event for resource '{resource_name}'. "
+        f"[{EVENT_START}] Processing event for resource '{resource_name}' (Event ID: {event_id}). "
         f"Attempting to provision with image '{config.PROVISION_IMAGE}'."
     )
     
@@ -92,98 +100,104 @@ def _handle_provision_event(resource_name: str, ssh_public_key: Optional[str]) -
     )
     
     if success:
-        logger.info(f"[{EVENT_START}] Successfully initiated provisioning for resource '{resource_name}'.")
-        return _create_success_response(resource_name, "provisioning")
+        logger.info(f"[{EVENT_START}] Successfully initiated provisioning for resource '{resource_name}' (Event ID: {event_id}).")
+        return True
     else:
-        _raise_provisioning_error(resource_name, "provisioning")
+        logger.error(f"[{EVENT_START}] Failed provisioning for resource '{resource_name}' (Event ID: {event_id}).")
+        return False
 
 
-def _handle_deprovision_event(resource_name: str) -> JSONResponse:
+def _handle_deprovision_event(resource_name: str, event_id: Optional[str] = None) -> bool:
     """
-    Handle deprovisioning event for a resource.
-    
-    Args:
-        resource_name: Name of the resource to deprovision
-        
-    Returns:
-        JSONResponse with operation result
-        
-    Raises:
-        HTTPException: If deprovisioning fails
+    Handle deprovisioning event for a single resource. Returns True on success.
     """
     deprovision_target = config.DEPROVISION_IMAGE if config.DEPROVISION_IMAGE else None
     logger.info(
-        f"[{EVENT_END}] Processing event for resource '{resource_name}'. "
+        f"[{EVENT_END}] Processing event for resource '{resource_name}' (Event ID: {event_id}). "
         f"Attempting to deprovision with target '{deprovision_target}'."
     )
     
     success = kubernetes.patch_baremetalhost(resource_name, deprovision_target)
     
     if success:
-        logger.info(f"[{EVENT_END}] Successfully initiated deprovisioning for resource '{resource_name}'.")
-        return _create_success_response(resource_name, "deprovisioning")
+        logger.info(f"[{EVENT_END}] Successfully initiated deprovisioning for resource '{resource_name}' (Event ID: {event_id}).")
+        return True
     else:
-        _raise_provisioning_error(resource_name, "deprovisioning")
-
-
-def _handle_unknown_event(event_type: str, resource_name: str) -> JSONResponse:
-    """
-    Handle unknown event type.
-    
-    Args:
-        event_type: The unknown event type
-        resource_name: Name of the resource
-        
-    Returns:
-        JSONResponse indicating the event was ignored
-    """
-    logger.warning(
-        f"[UNKNOWN_EVENT] Received unhandled event type '{event_type}' "
-        f"for resource '{resource_name}'. Ignoring."
-    )
-    response_data = {"status": "ignored", "message": f"Event type '{event_type}' not handled"}
-    logger.debug(f"Response data: {response_data}")
-    return JSONResponse(response_data, status_code=200)
-
+        logger.error(f"[{EVENT_END}] Failed deprovisioning for resource '{resource_name}' (Event ID: {event_id}).")
+        return False
 
 @router.post("/webhook")
 async def handle_webhook(
-    payload: models.EventWebhookPayload, 
+    payload: models.WebhookPayload, # Now directly uses the unified WebhookPayload
     request: Request, 
     x_webhook_signature: Optional[str] = Header(None)
 ) -> JSONResponse:
     """
     Handle incoming webhook events for resource provisioning/deprovisioning.
-    
-    Args:
-        payload: Webhook payload containing event information
-        request: FastAPI request object
-        x_webhook_signature: Webhook signature for verification
-        
-    Returns:
-        JSONResponse with operation result
-        
-    Raises:
-        HTTPException: If signature verification or operation fails
+    Always expects a list of events in the payload.
     """
-    logger.info(f"Request Payload: {payload.model_dump_json(by_alias=True)}")
+    logger.info(f"Received webhook request. Attempting to parse payload.")
     
-    # Verify webhook signature
-    await _verify_webhook_signature(request, x_webhook_signature)
+    raw_payload = await _verify_webhook_signature(request, x_webhook_signature)
     
+    # Log based on the unified payload structure
     logger.info(
-        f"Webhook signature verified. Event Type: '{payload.event_type}', "
-        f"Resource Name: '{payload.resource_name}'."
+        f"Processing webhook. Event Type: '{payload.event_type}', "
+        f"User: '{payload.username}', Event Count: {payload.event_count}."
+        f" Raw payload snippet: {raw_payload[:200]}"
     )
+        
+    processed_events_count = 0
+    failed_event_details = []
     
-    # Route event to appropriate handler
-    if payload.event_type == EVENT_START:
-        return _handle_provision_event(payload.resource_name, payload.ssh_public_key)
-    elif payload.event_type == EVENT_END:
-        return _handle_deprovision_event(payload.resource_name)
-    else:
-        return _handle_unknown_event(payload.event_type, payload.resource_name)
+    user_info = {
+        "userId": payload.user_id,
+        "username": payload.username,
+        "email": payload.email,
+        "sshPublicKey": payload.ssh_public_key
+    }
 
+    if not payload.events:
+        logger.warning("Received payload with no events listed.")
+        # Or raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No events provided in payload.")
+        return _create_batch_success_response(payload.event_type.lower(), 0, payload.user_id) # Or an error response
+
+    if payload.event_type == EVENT_START:
+        successful_provision_events = []
+        for event in payload.events:
+            if _handle_provision_event(event.resource_name, payload.ssh_public_key, event.event_id):
+                processed_events_count += 1
+                successful_provision_events.append(event)
+            else:
+                failed_event_details.append({"event_id": event.event_id, "resource_name": event.resource_name, "action": "provision"})
+        
+        if successful_provision_events: # Only call if at least one succeeded
+             _post_batch_provision_actions(successful_provision_events, user_info)
+
+    elif payload.event_type == EVENT_END:
+        for event in payload.events:
+            if _handle_deprovision_event(event.resource_name, event.event_id):
+                processed_events_count += 1
+            else:
+                failed_event_details.append({"event_id": event.event_id, "resource_name": event.resource_name, "action": "deprovision"})
+    else:
+        # Handle unknown event type for the entire payload
+        logger.warning(f"Received unknown event type '{payload.event_type}' for user {payload.username}.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown event type: '{payload.event_type}'"
+        )
+
+    if failed_event_details:
+        logger.error(f"Webhook processing for user {payload.username} (Event Type: {payload.event_type}) encountered {len(failed_event_details)} failures out of {payload.event_count} events.")
+        # Respond with an error if any event failed, detailing the failures.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Processing for event type '{payload.event_type}' failed for {len(failed_event_details)} out of {payload.event_count} events. Failures: {failed_event_details}"
+        )
+    
+    # If all events (if any) were processed successfully
+    return _create_batch_success_response(payload.event_type.lower(), processed_events_count, payload.user_id)
 
 @router.get("/healthz")
 def health_check() -> dict:

@@ -19,14 +19,23 @@ logger = config.logger
 CLOUD_CONFIG_TEMPLATE = {
     "ssh_pwauth": True,
     "groups": ["admingroup", "cloud-users"],
-    "users": [{
-        "name": "restart.admin",
-        "groups": "admingroup",
-        "lock_passwd": False,
-        "passwd": "$6$/O/rvHuhqfc00hDw$3X4ILugPTXw9JTtgWNh16oeFqLcsMOaPwzk7TBxtwm5QXa2vALMC2W7/JToC99ngxpKla80QpVAEs3jA8I0rk0",
-        "sudo": "ALL=(ALL) NOPASSWD:ALL",
-        "ssh_authorized_keys": []  # Will be populated dynamically
-    }]
+    "users": [
+        {
+            "name": "restart.admin",
+            "groups": "admingroup",
+            "lock_passwd": False,
+            "passwd": "$6$/O/rvHuhqfc00hDw$3X4ILugPTXw9JTtgWNh16oeFqLcsMOaPwzk7TBxtwm5QXa2vALMC2W7/JToC99ngxpKla80QpVAEs3jA8I0rk0",
+            "sudo": "ALL=(ALL) NOPASSWD:ALL",
+            "ssh_authorized_keys": []  # restart.admin will not have external keys by default
+        },
+        {
+            "name": "prognose",  # New user for external access
+            "groups": "cloud-users",
+            "lock_passwd": True,  # Lock password, access only via SSH key
+            "sudo": "ALL=(ALL) NOPASSWD:ALL",  # No sudo privileges for external user
+            "ssh_authorized_keys": []  # Will be populated dynamically
+        }
+    ]
 }
 
 
@@ -52,9 +61,16 @@ class UserDataSecretManager:
             Cloud-config as YAML string
         """
         cloud_config = CLOUD_CONFIG_TEMPLATE.copy()
-        cloud_config["users"][0]["ssh_authorized_keys"] = [ssh_key]
+        # Ensure users list is deep copied if further modifications are needed that could affect the template
+        cloud_config["users"] = [user.copy() for user in CLOUD_CONFIG_TEMPLATE["users"]]
+
+        # Find the "prognose" and add the ssh_key
+        for user in cloud_config["users"]:
+            if user["name"] == "prognose":
+                user["ssh_authorized_keys"] = [ssh_key]
+                break
         
-        return "#cloud-config\n" + yaml.dump(cloud_config, default_flow_style=False)
+        return "#cloud-config\\n" + yaml.dump(cloud_config, default_flow_style=False)
     
     def _encode_cloud_config(self, cloud_config: str) -> str:
         """

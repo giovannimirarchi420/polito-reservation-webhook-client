@@ -58,7 +58,7 @@ kubernetes.client.exceptions.ApiException: (403)
    ```bash
    # Recreate role binding
    kubectl delete rolebinding webhook-client-binding -n metal3-system
-   kubectl apply -f k8s/rbac-restrictive.yaml
+   kubectl apply -f k8s/rbac.yaml
    ```
 
 #### Issue: "Unauthorized" errors in local development

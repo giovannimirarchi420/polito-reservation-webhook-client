@@ -148,7 +148,7 @@ kubectl logs deployment/webhook-client -n webhook-client | grep ERROR
 | Authentication errors | [Troubleshooting Guide](TROUBLESHOOTING.md#authentication-and-authorization-issues) |
 | Webhook signature fails | [API Reference](API.md#authentication) |
 | Performance issues | [Troubleshooting Guide](TROUBLESHOOTING.md#performance-issues) |
-| Kubernetes errors | [Troubleshooting Guide](TROUBLESHOOTING.md#resource-management-issues) |
+| Kubernetes errors | [Troubleshooting Guide](TROUBLESHOOTING.md#prognose-issues) |
 | Configuration questions | [Configuration Guide](CONFIGURATION.md) |
 
 ## 📚 Documentation Standards

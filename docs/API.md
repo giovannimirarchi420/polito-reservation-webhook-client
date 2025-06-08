@@ -16,7 +16,7 @@ The Webhook Client provides a RESTful API for managing BareMetalHost resources t
 All webhook requests must include a signature header when `WEBHOOK_SECRET` is configured:
 
 ```
-X-Webhook-Signature: sha256=<hmac_hex_digest>
+X-Webhook-Signature: <hmac_hex_digest>
 ```
 
 **Signature Generation:**
@@ -25,12 +25,15 @@ import hmac
 import hashlib
 
 def generate_signature(payload: bytes, secret: str) -> str:
-    signature = hmac.new(
-        secret.encode('utf-8'),
-        payload,
-        hashlib.sha256
-    ).hexdigest()
-    return f"sha256={signature}"
+    if not self.secret:
+        raise SignatureVerificationError("Webhook secret not configured")
+
+    hash_object = hmac.new(
+        self.secret.encode('utf-8'),
+        msg=payload,
+        digestmod=hashlib.sha256
+    )
+    return base64.b64encode(hash_object.digest()).decode('utf-8') # signature
 ```
 
 ## Endpoints
@@ -44,7 +47,7 @@ Processes reservation lifecycle events and manages corresponding Kubernetes reso
 **Headers:**
 ```
 Content-Type: application/json
-X-Webhook-Signature: sha256=<signature> (required if WEBHOOK_SECRET set)
+X-Webhook-Signature: <signature> (required if WEBHOOK_SECRET set)
 ```
 
 **Body Schema:**
@@ -100,7 +103,7 @@ X-Webhook-Signature: sha256=<signature> (required if WEBHOOK_SECRET set)
 ```bash
 curl -X POST http://localhost:5001/webhook \
   -H "Content-Type: application/json" \
-  -H "X-Webhook-Signature: sha256=abc123..." \
+  -H "X-Webhook-Signature: abc123..." \
   -d '{
     "eventType": "EVENT_START",
     "resourceName": "bmh-node-001",
@@ -113,7 +116,7 @@ curl -X POST http://localhost:5001/webhook \
 ```bash
 curl -X POST http://localhost:5001/webhook \
   -H "Content-Type: application/json" \
-  -H "X-Webhook-Signature: sha256=def456..." \
+  -H "X-Webhook-Signature: def456..." \
   -d '{
     "eventType": "EVENT_END",
     "resourceName": "bmh-node-001",
