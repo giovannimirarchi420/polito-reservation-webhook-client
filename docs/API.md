@@ -51,6 +51,55 @@ X-Webhook-Signature: <signature> (required if WEBHOOK_SECRET set)
 ```
 
 **Body Schema:**
+
+The webhook supports both batch and single event formats. For detailed examples, see `webhook-payload-examples.md`.
+
+**Batch Format (Recommended):**
+```json
+{
+    "eventType": "EVENT_START | EVENT_END",
+    "timestamp": "2025-06-08T14:30:00.000+02:00",
+    "eventCount": 3,
+    "userId": "string",
+    "username": "string",
+    "email": "string",
+    "sshPublicKey": "string",
+    "events": [
+        {
+            "eventId": "string",
+            "eventTitle": "string",
+            "eventDescription": "string",
+            "eventStart": "2025-06-08T15:00:00.000+02:00",
+            "eventEnd": "2025-06-08T17:00:00.000+02:00",
+            "resourceId": 0,
+            "resourceName": "string",
+            "resourceType": "string",
+            "resourceSpecs": "string",
+            "resourceLocation": "string",
+            "siteId": "string",
+            "siteName": "string"
+        }
+    ],
+    "activeResources": [
+        {
+            "eventId": "string",
+            "eventTitle": "string",
+            "eventDescription": "string",
+            "eventStart": "2025-06-08T13:00:00.000+02:00",
+            "eventEnd": "2025-06-08T19:00:00.000+02:00",
+            "resourceId": 0,
+            "resourceName": "string",
+            "resourceType": "string",
+            "resourceSpecs": "string",
+            "resourceLocation": "string",
+            "siteId": "string",
+            "siteName": "string"
+        }
+    ]
+}
+```
+
+**Single Event Format (Backward Compatibility):**
 ```json
 {
     "eventType": "EVENT_START | EVENT_END",
@@ -73,6 +122,11 @@ X-Webhook-Signature: <signature> (required if WEBHOOK_SECRET set)
     "siteName": "string"
 }
 ```
+
+**Notes:**
+- `activeResources`: Optional field containing resources currently in use by the user (only present in batch format)
+- `activeResources` can be `null` or empty if the user has no currently active resources
+- Events in `activeResources` are always different from those in `events` (no duplicates)
 
 #### Response
 

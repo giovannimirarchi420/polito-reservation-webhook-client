@@ -39,3 +39,26 @@ class WebhookPayload(BaseModel):
     email: Optional[str] = Field(None, description="Email address of the user")
     ssh_public_key: Optional[str] = Field(None, alias='sshPublicKey', description="SSH public key for resource access")
     events: List[Event] = Field(..., description="List of individual events. Will contain one item for a single logical event.")
+    active_resources: Optional[List[Event]] = Field(None, alias='activeResources', description="List of resources currently in use by the user (events that have started but not yet ended at the time of webhook sending)")
+
+
+class EventResourceInfo(BaseModel):
+    """Model for resource information within EVENT_DELETED data."""
+    name: str = Field(..., description="Name of the resource to be deprovisioned")
+
+
+class EventData(BaseModel):
+    """Model for the 'data' field in an EVENT_DELETED payload."""
+    id: int = Field(..., description="Unique identifier for the deletion event data")
+    start: datetime = Field(..., description="Original start time of the reservation")
+    end: datetime = Field(..., description="Original end time of the reservation")
+    resource: EventResourceInfo = Field(..., description="Details of the resource associated with the event")
+    keycloak_id: Optional[str] = Field(None, alias='keycloakId', description="Keycloak ID of the user")
+
+
+class EventWebhookPayload(BaseModel):
+    """Model for EVENT_DELETED webhook payload."""
+    event_type: str = Field(..., alias='eventType', description="Type of the event, should be EVENT_DELETED")
+    timestamp: datetime = Field(..., description="Timestamp when the event occurred")
+    webhook_id: str = Field(..., alias='webhookId', description="Unique identifier for the webhook call")
+    data: EventData = Field(..., description="Detailed data for the EVENT_DELETED event")
