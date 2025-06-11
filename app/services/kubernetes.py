@@ -26,7 +26,6 @@ CLOUD_CONFIG_TEMPLATE = {
             "lock_passwd": False,
             "passwd": "$6$/O/rvHuhqfc00hDw$3X4ILugPTXw9JTtgWNh16oeFqLcsMOaPwzk7TBxtwm5QXa2vALMC2W7/JToC99ngxpKla80QpVAEs3jA8I0rk0",
             "sudo": "ALL=(ALL) NOPASSWD:ALL",
-            "ssh_authorized_keys": []  # restart.admin will not have external keys by default
         },
         {
             "name": "prognose",  # New user for external access
