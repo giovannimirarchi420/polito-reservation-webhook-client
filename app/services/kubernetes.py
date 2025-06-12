@@ -20,7 +20,6 @@ CLOUD_CONFIG_TEMPLATE = {
     "ssh_pwauth": True,
     "groups": ["admingroup", "cloud-users"],
     "users": [
-        "default",
         {
             "name": "restart.admin",
             "groups": "admingroup",
@@ -70,7 +69,7 @@ class UserDataSecretManager:
                 user["ssh_authorized_keys"] = [ssh_key]
                 break
         
-        return yaml.dump(cloud_config, default_flow_style=False)
+        return "#cloud-config\n" + yaml.dump(cloud_config, default_flow_style=False)
     
     def _encode_cloud_config(self, cloud_config: str) -> str:
         """
