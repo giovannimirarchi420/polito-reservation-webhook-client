@@ -70,7 +70,7 @@ class UserDataSecretManager:
                 user["ssh_authorized_keys"] = [ssh_key]
                 break
         
-        return "#cloud-config\n" + yaml.dump(cloud_config, default_flow_style=False)
+        return yaml.dump(cloud_config, default_flow_style=False)
     
     def _encode_cloud_config(self, cloud_config: str) -> str:
         """
