@@ -91,7 +91,9 @@ def _post_batch_provision_actions(events: List[models.Event], user_info: dict, a
             
             # Extract resource names from events
             resource_names = [event.resource_name for event in events]
-            resource_names.append(resource.resource_name for resource in active_resources)
+            for active_resource in active_resources:
+                resource_names.append(active_resource.resource_name)
+                
             # Configure network switch
             switch_manager = get_switch_manager()
             success = switch_manager.configure_batch_network(resource_names, user_info)
