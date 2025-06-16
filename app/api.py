@@ -6,12 +6,13 @@ related to resource provisioning and deprovisioning.
 """
 from typing import Optional, List, Union # Added Union
 from datetime import datetime # Added datetime
+import uuid
 
 from fastapi import APIRouter, Request, Header, HTTPException, status
 from fastapi.responses import JSONResponse
 
 from . import config, models
-from .services import security, kubernetes
+from .services import security, kubernetes, notification
 
 logger = config.logger
 router = APIRouter()
@@ -39,7 +40,7 @@ async def _verify_webhook_signature(request: Request, signature: Optional[str]) 
     payload_raw = await request.body()
     
     # Use the WebhookSecurity class for signature verification
-    webhook_secret_value = config.WEBHOOK_SECRET # Changed from config.settings.webhook_secret
+    webhook_secret_value = config.WEBHOOK_SECRET
     if webhook_secret_value:
         sec_service = security.WebhookSecurity(webhook_secret_value)
         if not sec_service.verify_signature(payload_raw, signature):
@@ -68,8 +69,8 @@ def _create_batch_success_response(action: str, count: int, user_id: Optional[st
 def _post_batch_provision_actions(events: List[models.Event], user_info: dict, active_resources: Optional[List[models.Event]] = None) -> None:
     """
     Perform actions after all resources in a batch have been provisioned.
-    This is a placeholder for custom logic, e.g., setting up networking,
-    shared storage, or notifying a user/system.
+    This function configures network switch settings to create VLANs and 
+    assign server ports for the batch of provisioned resources.
     """
     logger.info(f"Executing post-batch provision actions for user {user_info.get('username')}, {len(events)} new resources.")
     
@@ -83,17 +84,39 @@ def _post_batch_provision_actions(events: List[models.Event], user_info: dict, a
         for active_resource in active_resources:
             logger.info(f"    - ACTIVE resource: {active_resource.resource_name} (Event ID: {active_resource.event_id})")
     
-    # Add your custom logic here
-    # This could involve:
-    # - Configuring network policies between the provisioned resources and existing active resources
-    # - Setting up shared file systems or databases considering all user's resources
-    # - Sending a notification that the batch of resources is ready with context of total active resources
-    # - Triggering a subsequent workflow that considers the user's complete resource landscape
-    # - Checking resource usage limits considering both new and existing active resources
-    logger.info("Post-batch provision actions placeholder completed.")
+    # Configure network switch for the batch of provisioned servers
+    if config.NETWORK_CONFIG_ENABLED:
+        try:
+            from app.services.network import get_switch_manager
+            
+            # Extract resource names from events
+            resource_names = [event.resource_name for event in events]
+            resource_names.append(resource.resource_name for resource in active_resources)
+            # Configure network switch
+            switch_manager = get_switch_manager()
+            success = switch_manager.configure_batch_network(resource_names, user_info)
+            
+            if success:
+                logger.info(f"Successfully configured network switch for batch of {len(events)} resources")
+            else:
+                logger.error(f"Failed to configure network switch for batch of {len(events)} resources")
+                
+        except Exception as e:
+            logger.error(f"Error during network configuration: {e}")
+            # Don't raise the exception to avoid breaking the provisioning workflow
+    else:
+        logger.info("Network configuration is disabled (NETWORK_CONFIG_ENABLED=false)")
+    
+    logger.info("Post-batch provision actions completed.")
 
 
-def _handle_provision_event(resource_name: str, ssh_public_key: Optional[str], event_id: Optional[str] = None) -> bool:
+def _handle_provision_event(
+    resource_name: str, 
+    ssh_public_key: Optional[str], 
+    webhook_id: str,
+    user_id: str,
+    event_id: Optional[str] = None
+) -> bool:
     """
     Handle provisioning event for a single resource. Returns True on success.
     """
@@ -102,23 +125,80 @@ def _handle_provision_event(resource_name: str, ssh_public_key: Optional[str], e
         f"Attempting to provision with image '{config.PROVISION_IMAGE}'."
     )
     
+    # Provision the BareMetalHost with asynchronous monitoring
     success = kubernetes.patch_baremetalhost(
         bmh_name=resource_name,
         image_url=config.PROVISION_IMAGE,
         ssh_key=ssh_public_key,
         checksum=config.PROVISION_CHECKSUM,
-        checksum_type=config.PROVISION_CHECKSUM_TYPE
+        checksum_type=config.PROVISION_CHECKSUM_TYPE,
+        webhook_id=webhook_id,
+        user_id=user_id,
+        event_id=event_id,
+        timeout=config.PROVISIONING_TIMEOUT
     )
     
+    if not success:
+        # Send immediate notification and webhook log if the provisioning failed to start
+        if webhook_id and user_id:
+            notification_sent = notification.send_provisioning_notification(
+                webhook_id=webhook_id,
+                user_id=user_id,
+                resource_name=resource_name,
+                success=False,
+                error_message="Failed to start provisioning",
+                event_id=event_id
+            )
+            if not notification_sent:
+                logger.warning(f"Failed to send notification for resource '{resource_name}'")
+            
+            # Send webhook log for the failed provisioning attempt
+            webhook_log_sent = notification.send_webhook_log(
+                webhook_id=webhook_id,
+                event_type=EVENT_START,
+                success=False,
+                status_code=500,
+                response_message="Failed to start provisioning",
+                retry_count=0,
+                resource_name=resource_name,
+                user_id=user_id,
+                error_message="Failed to start provisioning",
+                event_id=event_id
+            )
+            if not webhook_log_sent:
+                logger.warning(f"Failed to send webhook log for resource '{resource_name}'")
+    
     if success:
-        logger.info(f"[{EVENT_START}] Successfully initiated provisioning for resource '{resource_name}' (Event ID: {event_id}).")
+        # Send webhook log for successful provisioning initiation
+        if webhook_id and user_id:
+            webhook_log_sent = notification.send_webhook_log(
+                webhook_id=webhook_id,
+                event_type=EVENT_START,
+                success=True,
+                status_code=200,
+                response_message="Provisioning initiated successfully",
+                retry_count=0,
+                resource_name=resource_name,
+                user_id=user_id,
+                error_message=None,
+                event_id=event_id
+            )
+            if not webhook_log_sent:
+                logger.warning(f"Failed to send webhook log for resource '{resource_name}'")
+        
+        logger.info(f"[{EVENT_START}] Successfully initiated provisioning for resource '{resource_name}' (Event ID: {event_id}). Monitoring in background.")
         return True
     else:
-        logger.error(f"[{EVENT_START}] Failed provisioning for resource '{resource_name}' (Event ID: {event_id}).")
+        logger.error(f"[{EVENT_START}] Failed to start provisioning for resource '{resource_name}' (Event ID: {event_id}).")
         return False
 
 
-def _handle_deprovision_event(resource_name: str, event_id: Optional[str] = None) -> bool:
+def _handle_deprovision_event(
+    resource_name: str, 
+    event_id: Optional[str] = None,
+    webhook_id: Optional[str] = None,
+    user_id: Optional[str] = None
+) -> bool:
     """
     Handle deprovisioning event for a single resource. Returns True on success.
     """
@@ -130,6 +210,23 @@ def _handle_deprovision_event(resource_name: str, event_id: Optional[str] = None
     )
     
     success = kubernetes.patch_baremetalhost(resource_name, deprovision_target)
+    
+    # Send webhook log if webhook_id is available
+    if webhook_id:
+        webhook_log_sent = notification.send_webhook_log(
+            webhook_id=webhook_id,
+            event_type=EVENT_END,
+            success=success,
+            status_code=200 if success else 500,
+            response_message="Deprovisioning completed successfully" if success else "Deprovisioning failed",
+            retry_count=0,
+            resource_name=resource_name,
+            user_id=user_id,
+            error_message=None if success else "Failed to initiate deprovisioning",
+            event_id=event_id
+        )
+        if not webhook_log_sent:
+            logger.warning(f"Failed to send webhook log for resource '{resource_name}'")
     
     if success:
         logger.info(f"Successfully initiated deprovisioning for resource '{resource_name}' (Event ID: {event_id}).")
@@ -189,9 +286,16 @@ async def handle_webhook(
             return _create_batch_success_response(payload.event_type.lower(), 0, payload.user_id)
 
         if payload.event_type == EVENT_START:
+            
             successful_provision_events = []
             for event in payload.events:
-                if _handle_provision_event(event.resource_name, payload.ssh_public_key, event.event_id):
+                if _handle_provision_event(
+                    event.resource_name, 
+                    payload.ssh_public_key, 
+                    payload.webhook_id,
+                    payload.user_id or "unknown",
+                    event.event_id
+                ):
                     processed_events_count += 1
                     successful_provision_events.append(event)
                 else:
@@ -202,7 +306,12 @@ async def handle_webhook(
 
         elif payload.event_type == EVENT_END:
             for event in payload.events:
-                if _handle_deprovision_event(event.resource_name, event.event_id):
+                if _handle_deprovision_event(
+                    event.resource_name, 
+                    event.event_id,
+                    payload.webhook_id,
+                    payload.user_id
+                ):
                     processed_events_count += 1
                 else:
                     failed_event_details.append({"event_id": event.event_id, "resource_name": event.resource_name, "action": "deprovision"})
@@ -236,7 +345,12 @@ async def handle_webhook(
 
             if reservation_start <= now < reservation_end:
                 logger.info(f"Reservation for resource '{payload.data.resource.name}' is currently active. Initiating deprovision.")
-                if _handle_deprovision_event(payload.data.resource.name, event_id=str(payload.data.id)):
+                if _handle_deprovision_event(
+                    payload.data.resource.name, 
+                    event_id=str(payload.data.id),
+                    webhook_id=payload.webhook_id,
+                    user_id=payload.data.keycloakId if payload.data else None
+                ):
                     logger.info(f"Successfully initiated deprovisioning for resource '{payload.data.resource.name}' due to EVENT_DELETED.")
                     return JSONResponse({
                         "status": "success", 

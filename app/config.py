@@ -98,11 +98,28 @@ class AppConfig:
         self.provision_checksum_type = os.environ.get("PROVISION_CHECKSUM_TYPE", "sha256")
         self.deprovision_image = os.environ.get("DEPROVISION_IMAGE", "")
         
+        # Network configuration
+        self.switch_host = os.environ.get("SWITCH_HOST")
+        self.switch_username = os.environ.get("SWITCH_USERNAME")
+        self.switch_password = os.environ.get("SWITCH_PASSWORD")
+        self.network_config_enabled = os.environ.get("NETWORK_CONFIG_ENABLED", "true").lower() == "true"
+        
         # Security configuration
         self.webhook_secret = os.environ.get("WEBHOOK_SECRET")
         
         # Server configuration
         self.port = int(os.environ.get("PORT", "8080"))
+        
+        # Provisioning configuration
+        self.provisioning_timeout = int(os.environ.get("PROVISIONING_TIMEOUT", "600"))  # 10 minutes
+        
+        # Notification configuration
+        self.notification_endpoint = os.environ.get("NOTIFICATION_ENDPOINT")
+        self.notification_timeout = int(os.environ.get("NOTIFICATION_TIMEOUT", "30"))  # 30 seconds
+        
+        # Webhook log configuration
+        self.webhook_log_endpoint = os.environ.get("WEBHOOK_LOG_ENDPOINT")
+        self.webhook_log_timeout = int(os.environ.get("WEBHOOK_LOG_TIMEOUT", "30"))  # 30 seconds
         
         # Logging configuration
         self.disable_healthz_logs = os.environ.get("DISABLE_HEALTHZ_LOGS", "true").lower() == "true"
@@ -117,6 +134,12 @@ class AppConfig:
         
         if not self.webhook_secret:
             logger.warning("WEBHOOK_SECRET not configured. Signature verification will be skipped.")
+        
+        if not self.notification_endpoint:
+            logger.warning("NOTIFICATION_ENDPOINT not configured. Notifications will be skipped.")
+        
+        if not self.webhook_log_endpoint:
+            logger.warning("WEBHOOK_LOG_ENDPOINT not configured. Webhook logging will be skipped.")
 
 
 # Initialize configuration
@@ -142,4 +165,13 @@ PROVISION_CHECKSUM_TYPE = config.provision_checksum_type
 DEPROVISION_IMAGE = config.deprovision_image
 WEBHOOK_SECRET = config.webhook_secret
 PORT = config.port
+SWITCH_HOST = config.switch_host
+SWITCH_USERNAME = config.switch_username
+SWITCH_PASSWORD = config.switch_password
+NETWORK_CONFIG_ENABLED = config.network_config_enabled
 DISABLE_HEALTHZ_LOGS = config.disable_healthz_logs
+PROVISIONING_TIMEOUT = config.provisioning_timeout
+NOTIFICATION_ENDPOINT = config.notification_endpoint
+NOTIFICATION_TIMEOUT = config.notification_timeout
+WEBHOOK_LOG_ENDPOINT = config.webhook_log_endpoint
+WEBHOOK_LOG_TIMEOUT = config.webhook_log_timeout

@@ -14,3 +14,15 @@ data:
   DEPROVISION_IMAGE: ""
   LOG_LEVEL: "INFO"
   DISABLE_HEALTHZ_LOGS: "true"
+  NETWORK_CONFIG_ENABLED: "true"
+  SWITCH_HOST: "192.168.24.67"
+  # Provisioning configuration
+  PROVISIONING_TIMEOUT: "2700"  # 45 minutes
+
+  # Notification configuration
+  NOTIFICATION_ENDPOINT: "https://prognose.crownlabs.polito.it/api/notifications/webhook"
+  NOTIFICATION_TIMEOUT: "30"
+
+  # Webhook log configuration  
+  WEBHOOK_LOG_ENDPOINT: "https://prognose.crownlabs.polito.it/api/webhooks/log"
+  WEBHOOK_LOG_TIMEOUT: "30"

@@ -3,3 +3,5 @@ uvicorn[standard]>=0.15.0
 kubernetes>=20.0
 pydantic
 PyYAML>=6.0
+netmiko>=4.3.0
+requests>=2.25.0

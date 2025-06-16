@@ -31,6 +31,7 @@ class WebhookPayload(BaseModel):
     Model for webhook event payload.
     It always expects a list of events, even for a single event.
     """
+    webhook_id: str = Field(..., alias='webhookId', description="Unique identifier for the webhook call")
     event_type: str = Field(..., alias='eventType', description="Type of the event (e.g., EVENT_START, EVENT_END)")
     timestamp: datetime = Field(..., description="Timestamp when the batch event occurred")
     event_count: int = Field(..., alias='eventCount', description="Number of events in the batch (will be 1 for a single event)")

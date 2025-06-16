@@ -1,0 +1,37 @@
+# Network configuration for server-to-switch port mapping
+# Maps server names to their corresponding switch ports
+
+switch:
+  host: "{{ SWITCH_HOST | default('192.168.24.67') }}"
+  username: "{{ SWITCH_USERNAME | default('admin') }}"
+  password: "{{ SWITCH_PASSWORD | default('admin') }}"
+  device_type: "cisco_ios"  # netmiko device type
+  port: 22
+  timeout: 30
+
+# Server to switch port mapping
+# Resource names format: restart-srv01, restart-srv02, ..., restart-srv15
+# Port numbers: 1-15
+server_port_mapping:
+  restart-srv01: 1
+  restart-srv02: 2
+  restart-srv03: 3
+  restart-srv04: 4
+  restart-srv05: 5
+  restart-srv06: 6
+  restart-srv07: 7
+  restart-srv08: 8
+  restart-srv09: 9
+  restart-srv10: 10
+  restart-srv11: 11
+  restart-srv12: 12
+  restart-srv13: 13
+  restart-srv14: 14
+  restart-srv15: 15
+
+# VLAN configuration
+vlan:
+  # Base VLAN ID - will be incremented for each batch
+  base_id: 100
+  name_prefix: "BATCH_VLAN"
+  description_prefix: "Auto-created VLAN for batch provisioning"

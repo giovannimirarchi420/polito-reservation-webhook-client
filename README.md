@@ -39,6 +39,8 @@ The webhook client follows clean architecture principles with clear separation o
 - **Webhook Reception**: Secure endpoint for receiving reservation lifecycle events
 - **Event Types**: Handles `EVENT_START` (provisioning) and `EVENT_END` (deprovisioning)
 - **Asynchronous Processing**: Non-blocking event handling with proper error recovery
+- **Provisioning Wait**: Waits for BareMetalHost provisioning completion (similar to `kubectl wait`)
+- **Automatic Notifications**: Sends HTTP notifications when provisioning completes
 
 ### Security Features
 - **HMAC-SHA256 Signature Verification**: Webhook payload authentication
@@ -49,6 +51,7 @@ The webhook client follows clean architecture principles with clear separation o
 - **BareMetalHost Management**: Direct interaction with Metal³ BareMetalHost CRDs
 - **UserData Secret Management**: Automated cloud-config secret lifecycle
 - **Resource Patching**: Strategic merge patching for optimal performance
+- **Status Monitoring**: Real-time monitoring of provisioning state transitions
 - **RBAC Support**: Fine-grained permission management
 
 ### Observability & Monitoring
@@ -78,11 +81,13 @@ The webhook client follows clean architecture principles with clear separation o
 
 ### Dependencies
 ```python
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-kubernetes>=28.1.0
-pydantic>=2.5.0
-python-multipart>=0.0.6
+fastapi>=0.70.0
+uvicorn[standard]>=0.15.0
+kubernetes>=20.0
+pydantic
+PyYAML>=6.0
+netmiko>=4.3.0
+requests>=2.25.0
 ```
 
 ## ⚙️ Configuration
