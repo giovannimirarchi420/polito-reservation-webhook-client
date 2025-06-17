@@ -93,7 +93,7 @@ def _post_batch_provision_actions(events: List[models.Event], user_info: dict, a
             resource_names = [event.resource_name for event in events]
             for active_resource in active_resources:
                 resource_names.append(active_resource.resource_name)
-                
+
             # Configure network switch
             switch_manager = get_switch_manager()
             success = switch_manager.configure_batch_network(resource_names, user_info)
@@ -110,7 +110,6 @@ def _post_batch_provision_actions(events: List[models.Event], user_info: dict, a
         logger.info("Network configuration is disabled (NETWORK_CONFIG_ENABLED=false)")
     
     logger.info("Post-batch provision actions completed.")
-
 
 def _handle_provision_event(
     resource_name: str, 
@@ -199,7 +198,7 @@ def _handle_deprovision_event(
     resource_name: str, 
     event_id: Optional[str] = None,
     webhook_id: Optional[str] = None,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
 ) -> bool:
     """
     Handle deprovisioning event for a single resource. Returns True on success.
@@ -212,6 +211,29 @@ def _handle_deprovision_event(
     )
     
     success = kubernetes.patch_baremetalhost(resource_name, deprovision_target)
+    
+    # Restore network configuration to default VLAN if network config is enabled
+    if success and config.NETWORK_CONFIG_ENABLED:
+        try:
+            from app.services.network import get_switch_manager
+            
+            logger.info(f"Restoring network configuration for resource '{resource_name}' to default VLAN 10")
+            
+            # Restore the server port to default VLAN 10
+            switch_manager = get_switch_manager()
+            network_success = switch_manager.restore_port_to_default_vlan(resource_name)
+            
+            if network_success:
+                logger.info(f"Successfully restored network configuration for resource '{resource_name}' to default VLAN 10")
+            else:
+                logger.error(f"Failed to restore network configuration for resource '{resource_name}' to default VLAN 10")
+                # Don't fail the deprovisioning if network restoration fails
+                
+        except Exception as e:
+            logger.error(f"Error during network restoration for resource '{resource_name}': {e}")
+            # Don't raise the exception to avoid breaking the deprovisioning workflow
+    elif success:
+        logger.info("Network configuration is disabled (NETWORK_CONFIG_ENABLED=false), skipping network restoration")
     
     # Send webhook log if webhook_id is available
     if webhook_id:
@@ -307,6 +329,7 @@ async def handle_webhook(
                  _post_batch_provision_actions(successful_provision_events, user_info, payload.active_resources)
 
         elif payload.event_type == EVENT_END:
+            successful_deprovision_events = []
             for event in payload.events:
                 if _handle_deprovision_event(
                     event.resource_name, 
@@ -315,6 +338,7 @@ async def handle_webhook(
                     payload.user_id
                 ):
                     processed_events_count += 1
+                    successful_deprovision_events.append(event)
                 else:
                     failed_event_details.append({"event_id": event.event_id, "resource_name": event.resource_name, "action": "deprovision"})
         # Note: Unknown event type for WebhookPayload is handled further down

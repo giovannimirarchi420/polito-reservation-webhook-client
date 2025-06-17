@@ -35,3 +35,5 @@ vlan:
   base_id: 100
   name_prefix: "BATCH_VLAN"
   description_prefix: "Auto-created VLAN for batch provisioning"
+  # Default VLAN for deprovisioned servers
+  default_vlan_id: 10

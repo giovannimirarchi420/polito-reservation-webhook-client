@@ -387,6 +387,7 @@ The webhook client supports efficient batch processing of multiple events:
 
 - **Single Request**: Multiple events from the same user processed together
 - **Network Automation**: Automatic VLAN creation for batch-provisioned servers
+- **Network Restoration**: Automatic port restoration to default VLAN on deprovisioning
 - **Active Resource Tracking**: Reports user's currently active resources
 - **Atomic Operations**: All events in a batch succeed or fail together
 
@@ -396,6 +397,7 @@ Automatic network switch configuration for provisioned servers:
 
 - **VLAN Creation**: Unique VLANs created for each batch of servers
 - **Port Assignment**: Automatic assignment of server ports to VLANs
+- **Port Restoration**: Automatic restoration to default VLAN (10) on deprovisioning
 - **Switch Support**: Cisco IOS switches via SSH/Netmiko
 - **Configuration File**: `app/network_config.yaml` for server-port mappings
 

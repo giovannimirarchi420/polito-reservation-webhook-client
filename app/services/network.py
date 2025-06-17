@@ -289,6 +289,59 @@ class SwitchManager:
         except Exception as e:
             self.logger.error(f"Unexpected error during network configuration: {e}")
             return False
+        
+    def restore_port_to_default_vlan(self, resource_name: str) -> bool:
+        """
+        Restore a server port to the default VLAN (typically VLAN 10).
+        
+        This method:
+        1. Maps the resource name to its switch port
+        2. Assigns the port to the default VLAN
+        3. Enables the port
+        
+        Args:
+            resource_name: Name of the resource being deprovisioned
+            
+        Returns:
+            True if restoration was successful, False otherwise
+        """
+        if not resource_name:
+            self.logger.warning("No resource name provided for port restoration")
+            return True
+        
+        try:
+            # Get port mapping for the resource
+            server_ports = self._get_server_ports([resource_name])
+            if not server_ports:
+                self.logger.warning(f"No port mapping found for resource: {resource_name}")
+                return True
+            
+            port = server_ports[resource_name]
+            default_vlan_id = self.config['vlan']['default_vlan_id']
+            
+            # Connect to switch
+            device = self._connect_to_switch()
+            
+            try:
+                # Assign port to default VLAN
+                if not self._assign_ports_to_vlan(device, [port], default_vlan_id):
+                    return False
+                
+                self.logger.info(
+                    f"Successfully restored resource '{resource_name}' port {port} to default VLAN {default_vlan_id}"
+                )
+                return True
+                
+            finally:
+                device.disconnect()
+                self.logger.info("Disconnected from switch")
+                
+        except NetworkConfigurationError as e:
+            self.logger.error(f"Network configuration error during port restoration: {e}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Unexpected error during port restoration for '{resource_name}': {e}")
+            return False
 
 
 # Global instance for use in other modules

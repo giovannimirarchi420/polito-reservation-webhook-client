@@ -45,7 +45,15 @@ vlan:
   base_id: 100
   name_prefix: "BATCH_VLAN"
   description_prefix: "Auto-created VLAN for batch provisioning"
+  default_vlan_id: 10  # VLAN for deprovisioned servers
 ```
+
+**Configuration Options:**
+
+- `base_id`: Starting VLAN ID for batch VLANs (default: 100)
+- `name_prefix`: Prefix for VLAN names (default: "BATCH_VLAN") 
+- `description_prefix`: Prefix for VLAN descriptions
+- `default_vlan_id`: VLAN ID to restore ports to when deprovisioning (default: 10)
 
 ## How It Works
 
@@ -195,7 +203,19 @@ Test the network configuration:
 - Supports Cisco IOS switches only
 - Maximum 15 servers (ports 1-15)
 - Single switch configuration
-- No automatic VLAN cleanup on deprovisioning
+
+## Deprovisioning Behavior
+
+When servers are deprovisioned, the network service automatically:
+
+1. **Individual Deprovisioning** (EVENT_DELETED): Immediately restores the server port to default VLAN 10
+2. **Batch Deprovisioning** (EVENT_END): Restores all server ports in the batch to default VLAN 10 after successful deprovisioning
+
+The restoration process:
+- Maps each resource name to its corresponding switch port
+- Assigns the port back to the default VLAN (configurable, default: 10)
+- Enables the port
+- Logs the restoration status
 
 ## Future Enhancements
 
